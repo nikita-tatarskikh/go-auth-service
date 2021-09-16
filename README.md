@@ -1,1 +1,1 @@
-# go-auth-servics
+# go-auth-service
