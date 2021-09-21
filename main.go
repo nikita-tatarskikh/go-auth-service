@@ -1,22 +1,31 @@
 package main
 
 import (
-	"fmt"
 	"context"
+	"encoding/json"
 	"log"
 	"net/http"
-	"github.com/google/uuid"
+
 	"github.com/dgrijalva/jwt-go"
+	"github.com/google/uuid"
 	"github.com/julienschmidt/httprouter"
-	"encoding/json"
-	//"go.mongodb.org/mongo-driver/bson"
-    "go.mongodb.org/mongo-driver/mongo"
-    "go.mongodb.org/mongo-driver/mongo/options"
+
+
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
+
+	"github.com/ulule/deepcopier"
+
 )
 
 type tokensPair struct {
 	AccessTokenString string `json:"accessToken"`
-	RefreshTokenString string `json:"refreshToken"`
+	RefreshTokenString string `bson:"refreshToken" json:"refreshToken"`
+}
+
+//Создана отдельная структура для простоты insert в MongoDB
+type RefreshTokenDoc struct {
+	RefreshTokenString string `bson:"refreshToken"`
 }
 
 func generateTokensPair(userId string) (*tokensPair, error) {
@@ -33,6 +42,8 @@ func generateTokensPair(userId string) (*tokensPair, error) {
 		log.Fatal(err)
 	}
 
+	log.Println("Access Token was generated")
+
 	rtClaims := jwt.MapClaims{}
 	rtClaims["user_id"] = userId
 	rtClaims["refersh_uuid"] = uuid.New().String()
@@ -43,12 +54,15 @@ func generateTokensPair(userId string) (*tokensPair, error) {
 		log.Fatal(err)
 	}
 
-	//TO-DO сделать сохранение refreshToken в монго
+	log.Println("Refresh Token was generated")
+
+	StoreToken(*tokensPair)
 
 	return tokensPair, err
 }
 
 func SignUp(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	log.Println("Started handling SignUp")
 	r.ParseForm()
 	userId := r.Form.Get("guid")
 	payload, err := generateTokensPair(userId)
@@ -57,16 +71,17 @@ func SignUp(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(payload)
+	log.Println("User request was handled")
 }
 
-func Refresh (w http.ResponseWriter, r *http.Request) {
+func Refresh(w http.ResponseWriter, r *http.Request) {
 	//implementaion
 	// 1) Проверяем валидность токена, если токен валиден, переходм к шагу 2.
 	
 }
 
 
-func StoreToken (tokensPair tokensPair ) {
+func StoreToken(tokensPair tokensPair ) {
 	clientOptions := options.Client().ApplyURI("mongodb://localhost:27017")
 	// Connect to MongoDB
 	client, err := mongo.Connect(context.TODO(), clientOptions)
@@ -78,22 +93,32 @@ func StoreToken (tokensPair tokensPair ) {
 	if err != nil {
 	    log.Fatal(err)
 	}
-	fmt.Println("Connected to MongoDB!")
+	log.Println("Connected to MongoDB")
 
 	collection := client.Database("RefreshTokens").Collection("RefreshTokens")
-	
-	insertRefreshToken, err := collection.InsertOne(context.TODO(), tokensPair.RefreshTokenString)
+
+	RefreshTokenDoc := &RefreshTokenDoc{}
+
+	deepcopier.Copy(tokensPair).To(RefreshTokenDoc)
+
+	InsertRefrshToken, err := collection.InsertOne(context.TODO(), RefreshTokenDoc)
 
 	if err != nil {
 		log.Fatal(err)
 	}
-	//tokensPair.RefreshTokenString
+
+	log.Printf("Refresh Token was stored in MongoDB", InsertRefrshToken.InsertedID)
 	
+	err = client.Disconnect(context.TODO())
+
+	if err != nil {
+		log.Fatal(err)
+	}
+	log.Println("Disconnected from MongoDB")
 }
 
 func main() {
-	// router := httprouter.New()
-	// router.POST("/sign-up/", SignUp)
-	// log.Fatal(http.ListenAndServe(":8080", router))
-	StoreToken(tokensPair{})
+	router := httprouter.New()
+	router.POST("/sign-up/", SignUp)
+	log.Fatal(http.ListenAndServe(":8080", router))
 }
