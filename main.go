@@ -6,16 +6,13 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-
 	"github.com/dgrijalva/jwt-go"
 	"github.com/google/uuid"
 	"github.com/julienschmidt/httprouter"
 	"golang.org/x/crypto/bcrypt"
-
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
-
 	"github.com/ulule/deepcopier"
 )
 
@@ -37,6 +34,7 @@ func generateTokensPair(userId string) (*tokensPair, error) {
 
 	atClaims := jwt.MapClaims{}
 	atClaims["user_id"] = userId
+	atClaims["refersh_uuid"] = uuid.New().String()
 	accessTokenValue := jwt.NewWithClaims(jwt.SigningMethodHS512, atClaims)
 	tokensPair.AccessTokenString, err = accessTokenValue.SignedString(jwtKey)
 
@@ -58,7 +56,7 @@ func generateTokensPair(userId string) (*tokensPair, error) {
 
 	log.Println("Refresh Token was generated")
 
-	StoreToken(*tokensPair, userId)
+	StoreRefreshToken(*tokensPair, userId)
 
 	return tokensPair, err
 }
@@ -78,6 +76,7 @@ func SignUp(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 }
 
 func Refresh(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	log.Println("Started handling refesh token")
 	var RefreshToken, mongoSearchResult RefreshToken
 
 	err := json.NewDecoder(r.Body).Decode(&RefreshToken)
@@ -97,10 +96,11 @@ func Refresh(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 		})
 	
 		if err != nil {
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode("Illegal token")
 			log.Println("test0", err)
-		}
-	
-		claims := token.Claims.(jwt.MapClaims);
+		} else {
+			claims := token.Claims.(jwt.MapClaims);
 		RefreshToken.UserId = claims["user_id"].(string)
 		clientOptions := options.Client().ApplyURI("mongodb://localhost:27017")
 		client, err := mongo.Connect(context.TODO(), clientOptions)
@@ -113,16 +113,17 @@ func Refresh(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 		if err != nil {
 			log.Fatal(err)
 		}
+
+		log.Println("in", RefreshToken.RefreshTokenString)
 	
 		log.Println("Connected to MongoDB")
 	
 		collection := client.Database("RefreshTokens").Collection("RefreshTokens")
 		err = collection.FindOne(context.TODO(), bson.M{"userId": RefreshToken.UserId}).Decode(&mongoSearchResult)
-		log.Println(mongoSearchResult)
+		log.Println("mongo search result", mongoSearchResult)
 		if err!= nil {
 			log.Println("test",err)
 		}
-
 	
 		err = bcrypt.CompareHashAndPassword([]byte(mongoSearchResult.RefreshTokenString), []byte(RefreshToken.RefreshTokenString) )
 		log.Println(mongoSearchResult.RefreshTokenString)
@@ -131,6 +132,9 @@ func Refresh(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 			json.NewEncoder(w).Encode("Refresh Token is incorrect")
 			log.Println("bcrypt error", err)
 		} else {
+			if err!= nil {
+		 		log.Println("An error occurred while processing the request")
+		 	}
 			payload, err := generateTokensPair(RefreshToken.UserId)
 				if err != nil {
 				log.Printf("An error occurred while processing the request")	
@@ -139,18 +143,15 @@ func Refresh(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 			json.NewEncoder(w).Encode(payload)
 			log.Println("Tokens Pair was updated")
 		}
-	}
-
+	}	
+		}
 	
-
-	
-
-	
+		
 	
 }
 
-
-func StoreToken(tokensPair tokensPair, userId string) {
+func StoreRefreshToken(tokensPair tokensPair, userId string) {
+	var mongoSearchResult RefreshToken
 	clientOptions := options.Client().ApplyURI("mongodb://localhost:27017")
 	client, err := mongo.Connect(context.TODO(), clientOptions)
 
@@ -170,21 +171,41 @@ func StoreToken(tokensPair tokensPair, userId string) {
 	RefreshTokenDoc := &RefreshToken{}
 	deepcopier.Copy(tokensPair).To(RefreshTokenDoc)
 
-	bytes, err := bcrypt.GenerateFromPassword([]byte(RefreshTokenDoc.RefreshTokenString), 4)
-
-	if err != nil {
-		log.Fatal(err)
-	}
-	RefreshTokenDoc.RefreshTokenString = string(bytes)
 	RefreshTokenDoc.UserId = userId
-	log.Println("Refres Token while saving", RefreshTokenDoc)
-	InsertRefrshToken, err := collection.InsertOne(context.TODO(), RefreshTokenDoc)
+
+	err = collection.FindOne(context.TODO(), bson.M{"userId": RefreshTokenDoc.UserId}).Decode(&mongoSearchResult)
 
 	if err != nil {
-		log.Fatal(err)
+		log.Println(err)
 	}
 
-	log.Printf("Refresh Token was stored in MongoDB", InsertRefrshToken.InsertedID)
+	if mongoSearchResult.RefreshTokenString != "" && mongoSearchResult.UserId != "" {
+		bytes, err := bcrypt.GenerateFromPassword([]byte(RefreshTokenDoc.RefreshTokenString), 4)
+		if err != nil {
+			log.Fatal(err)
+		}
+		RefreshTokenDoc.RefreshTokenString = string(bytes)
+		log.Println("Hashed Token while saving", RefreshTokenDoc)
+		UpdateRefreshToken, err := collection.ReplaceOne(context.TODO(),bson.M{"userId": RefreshTokenDoc.UserId}, RefreshTokenDoc)
+		log.Println("Hashed Token was updated in MongoDB", UpdateRefreshToken)
+			if err != nil {
+				log.Fatal(err)
+			}
+
+
+	} else {
+		bytes, err := bcrypt.GenerateFromPassword([]byte(RefreshTokenDoc.RefreshTokenString), 4)
+		if err != nil {
+			log.Fatal(err)
+		}
+		RefreshTokenDoc.RefreshTokenString = string(bytes)
+		log.Println("Hashed Token while saving", RefreshTokenDoc)
+		InsertRefreshToken, err := collection.InsertOne(context.TODO(), RefreshTokenDoc)
+		log.Println("Hashed Token was stored in MongoDB", InsertRefreshToken.InsertedID)
+			if err != nil {
+				log.Fatal(err)
+			}
+	}
 	
 	err = client.Disconnect(context.TODO())
 
