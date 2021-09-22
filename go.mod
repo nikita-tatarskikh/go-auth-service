@@ -8,4 +8,5 @@ require (
 	github.com/julienschmidt/httprouter v1.3.0
 	github.com/ulule/deepcopier v0.0.0-20200430083143-45decc6639b6 // indirect
 	go.mongodb.org/mongo-driver v1.7.2 // indirect
+	golang.org/x/crypto v0.0.0-20210920023735-84f357641f63 // indirect
 )
