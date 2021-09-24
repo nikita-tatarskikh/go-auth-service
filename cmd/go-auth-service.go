@@ -102,7 +102,7 @@ func Refresh(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 		} else {
 			claims := token.Claims.(jwt.MapClaims);
 		RefreshToken.UserId = claims["user_id"].(string)
-		clientOptions := options.Client().ApplyURI("mongodb://localhost:27017")
+		clientOptions := options.Client().ApplyURI("mongodb://mongodb:27017")
 		client, err := mongo.Connect(context.TODO(), clientOptions)
 	
 		if err != nil {
@@ -152,7 +152,7 @@ func Refresh(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 
 func StoreRefreshToken(tokensPair tokensPair, userId string) {
 	var mongoSearchResult RefreshToken
-	clientOptions := options.Client().ApplyURI("mongodb://localhost:27017")
+	clientOptions := options.Client().ApplyURI("mongodb://mongodb:27017")
 	client, err := mongo.Connect(context.TODO(), clientOptions)
 
 	if err != nil {

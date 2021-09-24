@@ -1,0 +1,29 @@
+version: "3.3"
+services:
+  go-auth-service:
+    image: go-auth-service
+    ports:
+      - 8888:8080
+    networks:
+      - base
+
+
+  mongodb:
+    image: mongo:4.4.9
+    networks:
+      - base
+    ports:
+      - 27017:27017
+    restart: always
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: password
+    volumes:
+      - mongo:/data/db
+
+volumes:
+  mongo:
+
+networks:
+  base:
+    driver: bridge
