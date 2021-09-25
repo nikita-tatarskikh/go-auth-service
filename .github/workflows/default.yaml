@@ -1,0 +1,21 @@
+---
+name: Default
+
+on:
+  push:
+    branches: [ feature-build-ci ]
+  pull_request:
+    branches: [ feature-build-ci ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    container: golangci/golangci-lint
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+      - name: Run lint
+        run: make lint
+      - name: Build
+        run: make build
