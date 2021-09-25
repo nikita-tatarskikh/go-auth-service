@@ -3,7 +3,7 @@ services:
   go-auth-service:
     image: go-auth-service
     ports:
-      - 8888:8080
+      - 8080:8080
     networks:
       - base
     depends_on:
