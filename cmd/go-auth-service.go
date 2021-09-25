@@ -23,17 +23,17 @@ type tokensPair struct {
 
 //Создана отдельная структура для простоты insert в MongoDB и обратки refresh роута.
 type RefreshToken struct {
-	UserId string `bson:"userId" json:"userId"`
+	UserID string `bson:"userID" json:"userID"`
 	RefreshTokenString string `bson:"refreshToken" json:"refreshToken"`
 }
 
-func generateTokensPair(userId string) (*tokensPair, error) {
+func generateTokensPair(userID string) (*tokensPair, error) {
 	var err error
 	var jwtKey = []byte("https://www.notion.so/Test-task-Junior-BackDev-215fcddafff2425a8ca7e515e21527e7")
 	tokensPair := &tokensPair{}
 
 	atClaims := jwt.MapClaims{}
-	atClaims["user_id"] = userId
+	atClaims["user_id"] = userID
 	atClaims["refersh_uuid"] = uuid.New().String()
 	accessTokenValue := jwt.NewWithClaims(jwt.SigningMethodHS512, atClaims)
 	tokensPair.AccessTokenString, err = accessTokenValue.SignedString(jwtKey)
@@ -45,7 +45,7 @@ func generateTokensPair(userId string) (*tokensPair, error) {
 	log.Println("Access Token was generated")
 
 	rtClaims := jwt.MapClaims{}
-	rtClaims["user_id"] = userId
+	rtClaims["user_id"] = userID
 	rtClaims["refersh_uuid"] = uuid.New().String()
 	refreshTokenValue := jwt.NewWithClaims(jwt.SigningMethodHS512, rtClaims)
 	tokensPair.RefreshTokenString, err = refreshTokenValue.SignedString(jwtKey)
@@ -56,7 +56,7 @@ func generateTokensPair(userId string) (*tokensPair, error) {
 
 	log.Println("Refresh Token was generated")
 
-	StoreRefreshToken(*tokensPair, userId)
+	StoreRefreshToken(*tokensPair, userID)
 
 	return tokensPair, err
 }
@@ -65,8 +65,8 @@ func generateTokensPair(userId string) (*tokensPair, error) {
 func SignUp(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	log.Println("Started handling SignUp")
 	r.ParseForm()
-	userId := r.Form.Get("guid")
-	payload, err := generateTokensPair(userId)
+	userID := r.Form.Get("guid")
+	payload, err := generateTokensPair(userID)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -101,7 +101,7 @@ func Refresh(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 			log.Println("test0", err)
 		} else {
 			claims := token.Claims.(jwt.MapClaims);
-		RefreshToken.UserId = claims["user_id"].(string)
+		RefreshToken.UserID = claims["user_id"].(string)
 		clientOptions := options.Client().ApplyURI("mongodb://mongodb:27017")
 		client, err := mongo.Connect(context.TODO(), clientOptions)
 	
@@ -119,7 +119,7 @@ func Refresh(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 		log.Println("Connected to MongoDB")
 	
 		collection := client.Database("RefreshTokens").Collection("RefreshTokens")
-		err = collection.FindOne(context.TODO(), bson.M{"userId": RefreshToken.UserId}).Decode(&mongoSearchResult)
+		err = collection.FindOne(context.TODO(), bson.M{"userID": RefreshToken.UserID}).Decode(&mongoSearchResult)
 		log.Println("mongo search result", mongoSearchResult)
 		if err!= nil {
 			log.Println("test",err)
@@ -135,7 +135,7 @@ func Refresh(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 			if err!= nil {
 		 		log.Println("An error occurred while processing the request")
 		 	}
-			payload, err := generateTokensPair(RefreshToken.UserId)
+			payload, err := generateTokensPair(RefreshToken.UserID)
 				if err != nil {
 				log.Printf("An error occurred while processing the request")	
 				}
@@ -150,7 +150,7 @@ func Refresh(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	
 }
 
-func StoreRefreshToken(tokensPair tokensPair, userId string) {
+func StoreRefreshToken(tokensPair tokensPair, userID string) {
 	var mongoSearchResult RefreshToken
 	clientOptions := options.Client().ApplyURI("mongodb://mongodb:27017")
 	client, err := mongo.Connect(context.TODO(), clientOptions)
@@ -171,22 +171,22 @@ func StoreRefreshToken(tokensPair tokensPair, userId string) {
 	RefreshTokenDoc := &RefreshToken{}
 	deepcopier.Copy(tokensPair).To(RefreshTokenDoc)
 
-	RefreshTokenDoc.UserId = userId
+	RefreshTokenDoc.UserID = userID
 
-	err = collection.FindOne(context.TODO(), bson.M{"userId": RefreshTokenDoc.UserId}).Decode(&mongoSearchResult)
+	err = collection.FindOne(context.TODO(), bson.M{"userID": RefreshTokenDoc.UserID}).Decode(&mongoSearchResult)
 
 	if err != nil {
 		log.Println(err)
 	}
 
-	if mongoSearchResult.RefreshTokenString != "" && mongoSearchResult.UserId != "" {
+	if mongoSearchResult.RefreshTokenString != "" && mongoSearchResult.UserID != "" {
 		bytes, err := bcrypt.GenerateFromPassword([]byte(RefreshTokenDoc.RefreshTokenString), 4)
 		if err != nil {
 			log.Fatal(err)
 		}
 		RefreshTokenDoc.RefreshTokenString = string(bytes)
 		log.Println("Hashed Token while saving", RefreshTokenDoc)
-		UpdateRefreshToken, err := collection.ReplaceOne(context.TODO(),bson.M{"userId": RefreshTokenDoc.UserId}, RefreshTokenDoc)
+		UpdateRefreshToken, err := collection.ReplaceOne(context.TODO(),bson.M{"userID": RefreshTokenDoc.UserID}, RefreshTokenDoc)
 		log.Println("Hashed Token was updated in MongoDB", UpdateRefreshToken)
 			if err != nil {
 				log.Fatal(err)
