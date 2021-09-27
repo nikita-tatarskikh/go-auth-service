@@ -3,12 +3,12 @@ name: Default
 
 on:
   push:
-    branches: [ feature-build-ci ]
+    branches: [ main ]
   pull_request:
-    branches: [ feature-build-ci ]
+    branches: [ main ]
 
 jobs:
-  lint:
+  lint_build:
     runs-on: ubuntu-latest
     container: golangci/golangci-lint
 
@@ -17,6 +17,5 @@ jobs:
         uses: actions/checkout@v2
       - name: Run lint
         run: make lint
-        continue-on-error: true
       - name: Build
         run: make build
