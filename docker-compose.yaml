@@ -1,0 +1,28 @@
+version: "3.3"
+services:
+  go-auth-service:
+    image: go-auth-service
+    ports:
+      - 8080:8080
+    networks:
+      - base
+    depends_on:
+      - "mongodb"
+
+
+  mongodb:
+    image: mongo:4.4.9
+    networks:
+      - base
+    ports:
+      - 27017:27017
+    restart: always
+    volumes:
+      - mongo:/data/db
+
+volumes:
+  mongo:
+
+networks:
+  base:
+    driver: bridge
