@@ -1,3 +1,7 @@
+[![license](https://img.shields.io/github/license/obanger/go-auth-service?style=for-the-badge)](https://github.com/obanger/go-auth-service/blob/main/LICENSE)
+[![report](https://goreportcard.com/badge/github.com/obanger/go-auth-service?style=for-the-badge)](https://goreportcard.com/report/github.com/obanger/go-auth-service)
+[![workflow](https://img.shields.io/github/workflow/status/obanger/go-auth-service/Default?label=default&style=for-the-badge&logo=github)](https://github.com/obanger/go-auth-service/actions/workflows/default.yaml?query=workflow%3Adefault)
+
 # go-auth-service
 https://www.notion.so/Test-task-Junior-BackDev-215fcddafff2425a8ca7e515e21527e7
 1) Для работы необходим образ mongodb доступный на mongodb://localhost:27017
@@ -27,5 +31,4 @@ Makefile available targets:
   * build           Build go-auth-service
   * clean           Clean build directory.
   * docker-build    Build docker image
-
 ```
