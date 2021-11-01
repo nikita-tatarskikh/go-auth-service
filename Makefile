@@ -20,7 +20,6 @@ dep: ## Download the dependencies.
 
 lint: dep ## Lint the source files
 	golangci-lint run -v --timeout 5m
-	gosec -quiet ./...
 
 build: dep ## Build go-auth-service
 	mkdir -p ./bin
