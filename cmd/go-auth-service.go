@@ -4,16 +4,16 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
-	"net/http"
 	"github.com/dgrijalva/jwt-go"
 	"github.com/google/uuid"
 	"github.com/julienschmidt/httprouter"
-	"golang.org/x/crypto/bcrypt"
+	"github.com/ulule/deepcopier"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
-	"github.com/ulule/deepcopier"
+	"golang.org/x/crypto/bcrypt"
+	"log"
+	"net/http"
 )
 
 type tokensPair struct {
@@ -21,7 +21,7 @@ type tokensPair struct {
 	RefreshTokenString string `bson:"refreshToken" json:"refreshToken"`
 }
 
-//Создана отдельная структура для простоты insert в MongoDB и обратки refresh роута.
+// RefreshToken Создана отдельная структура для простоты insert в MongoDB и обратки refresh роута.
 type RefreshToken struct {
 	UserID string `bson:"userID" json:"userID"`
 	RefreshTokenString string `bson:"refreshToken" json:"refreshToken"`
@@ -34,7 +34,7 @@ func generateTokensPair(userID string) (*tokensPair, error) {
 
 	atClaims := jwt.MapClaims{}
 	atClaims["user_id"] = userID
-	atClaims["refersh_uuid"] = uuid.New().String()
+	atClaims["refresh_uuid"] = uuid.New().String()
 	accessTokenValue := jwt.NewWithClaims(jwt.SigningMethodHS512, atClaims)
 	tokensPair.AccessTokenString, err = accessTokenValue.SignedString(jwtKey)
 
@@ -46,7 +46,7 @@ func generateTokensPair(userID string) (*tokensPair, error) {
 
 	rtClaims := jwt.MapClaims{}
 	rtClaims["user_id"] = userID
-	rtClaims["refersh_uuid"] = uuid.New().String()
+	rtClaims["refresh_uuid"] = uuid.New().String()
 	refreshTokenValue := jwt.NewWithClaims(jwt.SigningMethodHS512, rtClaims)
 	tokensPair.RefreshTokenString, err = refreshTokenValue.SignedString(jwtKey)
 	
@@ -62,21 +62,27 @@ func generateTokensPair(userID string) (*tokensPair, error) {
 }
 
 
-func SignUp(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+func SignUp(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	log.Println("Started handling SignUp")
-	r.ParseForm()
+	err := r.ParseForm()
+	if err != nil {
+		return 
+	}
 	userID := r.Form.Get("guid")
 	payload, err := generateTokensPair(userID)
 	if err != nil {
 		log.Fatal(err)
 	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(payload)
+	err = json.NewEncoder(w).Encode(payload)
+	if err != nil {
+		return 
+	}
 	log.Println("User request was handled")
 }
 
-func Refresh(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	log.Println("Started handling refesh token")
+func Refresh(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	log.Println("Started handling refresh token")
 	var RefreshToken, mongoSearchResult RefreshToken
 
 	err := json.NewDecoder(r.Body).Decode(&RefreshToken)
@@ -84,9 +90,12 @@ func Refresh(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 		log.Fatal(err)
 	}
 
-	if (RefreshToken.RefreshTokenString == "") {
+	if RefreshToken.RefreshTokenString == "" {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode("Key 'refreshToken' not found")
+		err := json.NewEncoder(w).Encode("Key 'refreshToken' not found")
+		if err != nil {
+			return 
+		}
 	} else {
 		token, err := jwt.Parse(RefreshToken.RefreshTokenString, func(token *jwt.Token) (interface{}, error) {
 			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
@@ -97,10 +106,13 @@ func Refresh(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	
 		if err != nil {
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode("Illegal token")
+			err := json.NewEncoder(w).Encode("Illegal token")
+			if err != nil {
+				return 
+			}
 			log.Println("test0", err)
 		} else {
-			claims := token.Claims.(jwt.MapClaims);
+			claims := token.Claims.(jwt.MapClaims)
 		RefreshToken.UserID = claims["user_id"].(string)
 		clientOptions := options.Client().ApplyURI("mongodb://mongodb:27017")
 		client, err := mongo.Connect(context.TODO(), clientOptions)
@@ -129,7 +141,10 @@ func Refresh(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 		log.Println(mongoSearchResult.RefreshTokenString)
 		if err != nil {
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode("Refresh Token is incorrect")
+			err := json.NewEncoder(w).Encode("Refresh Token is incorrect")
+			if err != nil {
+				return 
+			}
 			log.Println("bcrypt error", err)
 		} else {
 			if err!= nil {
@@ -140,7 +155,10 @@ func Refresh(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 				log.Printf("An error occurred while processing the request")	
 				}
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(payload)
+			err = json.NewEncoder(w).Encode(payload)
+			if err != nil {
+				return 
+			}
 			log.Println("Tokens Pair was updated")
 		}
 	}	
@@ -169,7 +187,10 @@ func StoreRefreshToken(tokensPair tokensPair, userID string) {
 	collection := client.Database("RefreshTokens").Collection("RefreshTokens")
 
 	RefreshTokenDoc := &RefreshToken{}
-	deepcopier.Copy(tokensPair).To(RefreshTokenDoc)
+	err = deepcopier.Copy(tokensPair).To(RefreshTokenDoc)
+	if err != nil {
+		return 
+	}
 
 	RefreshTokenDoc.UserID = userID
 
