@@ -19,8 +19,7 @@ dep: ## Download the dependencies.
 	go mod download
 
 lint: dep ## Lint the source files
-	golangci-lint run --timeout 5m -E golint -e '(struct field|type|method|func) [a-zA-Z`]+ should be [a-zA-Z`]+'
-	gosec -quiet ./...
+	golangci-lint run -v --timeout 5m
 
 build: dep ## Build go-auth-service
 	mkdir -p ./bin
